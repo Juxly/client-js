@@ -6583,8 +6583,8 @@ function readyArgs(){
 BBClient.settings = {
   // Replaces the browser's current URL
   // using window.history.replaceState API.
-  // Default to true
-  replaceBrowserHistory: true,
+  // Official library defaults to true
+  replaceBrowserHistory: false,
   
   // When set to true, this variable will fully utilize
   // HTML5 sessionStorage API.
@@ -6596,7 +6596,8 @@ BBClient.settings = {
   // instances instantiated on a single thread to continue to
   // function without having sessionStorage data shared 
   // across the embedded IE instances.
-  fullSessionStorageSupport: true
+  // Official library defaults to true
+  fullSessionStorageSupport: false
 };
 
 /**
