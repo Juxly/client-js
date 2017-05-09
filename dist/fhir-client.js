@@ -75,10 +75,10 @@ return /******/ (function(modules) { // webpackBootstrap
 			if(!buffer.length)
 				d.resolve(true);
 			else {
-			var tokenResponse = JSON.parse(this.sessionStorage.getItem('tokenResponse'));
-			var refreshToken = tokenResponse.refresh_token;
-			var stateResponse = JSON.parse(this.sessionStorage.getItem(tokenResponse.state));
-			var url = stateResponse.provider.oauth2.token_uri;
+			var state = _getStateParam();
+			var response = JSON.parse(this.sessionStorage.getItem(state));
+			var refreshToken = response.tokenResponse.refresh_token;
+			var url = response.provider.oauth2.token_uri;
 			var opts = {
 				type: 'POST',
 				url: url,
@@ -86,17 +86,30 @@ return /******/ (function(modules) { // webpackBootstrap
                 data: {'grant_type': 'refresh_token', 'refresh_token': refreshToken }
 				}
 			}
-      jquery.ajax(opts)
-          .done(function(data, status, xhr) {d.resolve({data: data, status: status, headers: xhr.getResponseHeader, config: opts});})
-          .fail(function(err) {d.reject({error: err, data: err, config: opts});});
+		jquery.ajax(opts)
+			.done(function(data, status, xhr) {d.resolve({data: data, status: status, headers: xhr.getResponseHeader, config: opts});})
+			.fail(function(err) {d.reject({error: err, data: err, config: opts});});
 			return d.promise();
 		}
 
 		function _saveNewToken (token) {
-			var tokenResponse = JSON.parse(this.sessionStorage.getItem('tokenResponse'));
-			tokenResponse.access_token = token.access_token;
-			this.sessionStorage.setItem('tokenResponse', JSON.stringify(tokenResponse));
-			return token.access_token;
+		var state = _getStateParam();
+		var response = JSON.parse(this.sessionStorage.getItem(state));
+		response.tokenResponse.access_token = token.access_token;
+		this.sessionStorage.setItem(state, JSON.stringify(response));
+		return token.access_token;
+		}
+
+		function _getStateParam() {
+			var state = _getParam('state');
+			if (!state) throw new Error('Unable to get state from url parameters')
+			return state;
+		}
+
+		function _getParam (param) {
+		var url = window.location.href;
+		var reggy = new RegExp(param + '=([^&]+)').exec(url)
+		return reggy ? reggy[1] : ''
 		}
 
 		function _runBuffer(token) {
@@ -124,28 +137,28 @@ return /******/ (function(modules) { // webpackBootstrap
 				});
 		}
 
-	    var defer = function(){
-	        pr = jquery.Deferred();
-	        pr.promise = pr.promise();
-	        return pr;
-	    };
-	    var adapter = {
-	        defer: defer,
-	        http: function(args) {
-	            var ret = jquery.Deferred();
-	            var opts = {
-	                type: args.method,
-	                url: args.url,
-	                headers: args.headers,
-	                dataType: args.method === 'POST' ? 'text' : 'json',
-	                contentType: "application/json",
-	                data: args.data || args.params,
-	                withCredentials: args.credentials === 'include',
-	            };
-	             if (args.method === 'PUT' && args.data) {
-	                var resource = JSON.parse(args.data);
-	                if (resource && resource.meta && resource.meta.versionId) opts.headers['If-Match'] = 'W/"' + resource.meta.versionId + '"';
-	              }
+		var defer = function(){
+			pr = jquery.Deferred();
+			pr.promise = pr.promise();
+			return pr;
+		};
+		var adapter = {
+			defer: defer,
+			http: function(args) {
+				var ret = jquery.Deferred();
+				var opts = {
+					type: args.method,
+					url: args.url,
+					headers: args.headers,
+					dataType: args.method === 'POST' ? 'text' : 'json',
+					contentType: "application/json",
+					data: args.data || args.params,
+					withCredentials: args.credentials === 'include',
+				};
+					if (args.method === 'PUT' && args.data) {
+						var resource = JSON.parse(args.data);
+						if (resource && resource.meta && resource.meta.versionId) opts.headers['If-Match'] = 'W/"' + resource.meta.versionId + '"';
+					}
 							//  Handle custom Ajax options or modify existing options before each request is sent and before they are processed by $.ajax().
 							jquery.ajaxPrefilter(function (opts, originalOpts, jqxhr) {
 								if (opts.retrying) return;
@@ -155,16 +168,17 @@ return /******/ (function(modules) { // webpackBootstrap
 								});
 								jqxhr.done(deferred.resolve);
 								jqxhr.fail(function () {
-									if (jqxhr.status === 401) {
+									if (jqxhr.status === 401 || jqxhr.status === 0) { // why use a standard code for token timeout when you can use 0 - WTF ;)
 										_addToBuffer(opts, deferred);
 										if (!inRefreshRequest) {
 											inRefreshRequest = true;
 											_tokenExpiration().then(function (result) {
+												if (!inRefreshRequest) return;
 												var token = _saveNewToken(result.data);
 												var waited = 0;
 												interval = setInterval(function () {
 													waited += 25;
-													if (currentRequests.length === 0 || waited >= 500) {
+													if (currentRequests.length === 0 || waited >= 1000) {
 														clearInterval(interval);
 														_runBuffer(token);
 													}
@@ -175,12 +189,12 @@ return /******/ (function(modules) { // webpackBootstrap
 								});
 								return deferred.promise(jqxhr);
 							});
-	            jquery.ajax(opts)
-	                .done(function(data, status, xhr) {ret.resolve({data: data, status: status, headers: xhr.getResponseHeader, config: args});})
-	                .fail(function(err) {ret.reject({error: err, data: err, config: args});});
-	            return ret.promise();
-	        }
-	    };
+				jquery.ajax(opts)
+					.done(function(data, status, xhr) {ret.resolve({data: data, status: status, headers: xhr.getResponseHeader, config: args});})
+					.fail(function(err) {ret.reject({error: err, data: err, config: args});});
+				return ret.promise();
+			}
+		};
 
 	    var fhir = function(config) {
 	        return mkFhir(config, adapter);
